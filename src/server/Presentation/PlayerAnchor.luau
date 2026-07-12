@@ -83,6 +83,18 @@ function PlayerAnchor.lock(player: Player, character: Model, trove: Cleanup.Clea
 		-- Genuinely seat the avatar: the Seat's weld holds it in a sitting pose.
 		activeSeat:Sit(humanoid)
 
+		-- Take server network ownership of the character. A seated player still
+		-- owns their own HumanoidRootPart by default, and WalkSpeed=0 only blocks
+		-- Humanoid-driven locomotion — it does NOT stop a hacked client from
+		-- CFrame-driving a client-owned root off the X/Y plane. Server ownership
+		-- closes that hole (the anchored-root fallback below is already
+		-- server-authoritative, and SetNetworkOwner errors on anchored parts, so
+		-- it is only needed on this seated path). Requires the Seat to be Anchored
+		-- (SceneValidator warns otherwise).
+		pcall(function()
+			root:SetNetworkOwner(nil)
+		end)
+
 		-- Re-seat if anything (exploit, forced state change) knocks a live player
 		-- out. Seated fires with active=false when they leave the seat; ignore the
 		-- death case (Health <= 0) so we never try to re-seat a corpse.

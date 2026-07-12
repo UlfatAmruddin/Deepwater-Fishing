@@ -96,6 +96,14 @@ function SceneValidator.validate()
 				boatAnchor.ClassName
 			)
 		)
+	elseif not boatAnchor.Anchored then
+		-- A non-anchored Seat leaves the seated character client-simulated, so a
+		-- hacked client could drive it off the plane despite the server seating it.
+		Log.warn(
+			("Boat anchor Seat '%s' is NOT Anchored — a seated player stays client-simulated and could be driven off the plane. Anchor the Seat."):format(
+				SceneConfig.boatAnchorName
+			)
+		)
 	end
 
 	validateLayers(scene)
