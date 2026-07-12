@@ -1,0 +1,19 @@
+# Build artifacts
+*.rbxl
+*.rbxlx
+sourcemap.json
+
+# Generated tooling files
+roblox.yml
+/.rokit/
+/.lune/
+
+# Wally (adopted later, when a dependency is actually needed)
+/Packages/
+/ServerPackages/
+/DevPackages/
+wally.lock
+
+# OS / editor noise
+.DS_Store
+Thumbs.db

@@ -1,0 +1,20 @@
+# Rokit toolchain manifest for Deepwater Fishing.
+#
+# Install everything with:
+#   rokit install
+#
+# NOTE: These tools are published only via GitHub Releases. In sandboxed
+# environments where outbound access to github.com is blocked, `rokit install`
+# will fail — that is expected and does NOT block development:
+#   * The game still builds and runs in Roblox Studio via the Rojo plugin.
+#   * These tools cover local formatting / linting / type-checking / testing
+#     and the GitHub Actions CI pipeline (where GitHub is reachable).
+#
+# Versions are conservative, known-good pins. Bump with `rokit add <tool>`.
+
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+stylua = "JohnnyMorganz/StyLua@0.20.0"
+selene = "Kampfkarren/selene@0.27.1"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.32.1"
+lune = "lune-org/lune@0.8.9"

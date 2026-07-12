@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Installs every tool pinned in rokit.toml (rojo, stylua, selene,
+      # luau-lsp, lune). GitHub Releases are reachable from Actions runners.
+      - name: Install toolchain (Rokit)
+        uses: CompeyDev/setup-rokit@v0.1.2
+
+      - name: Format check (StyLua)
+        run: stylua --check src scene tests
+
+      - name: Lint (Selene)
+        run: |
+          selene generate-roblox-std
+          selene src scene
+
+      - name: Build place (Rojo)
+        run: rojo build default.project.json --output build.rbxl
+
+      - name: Type check (luau-lsp)
+        run: |
+          rojo sourcemap default.project.json --output sourcemap.json
+          luau-lsp analyze --sourcemap=sourcemap.json --settings=.vscode/settings.json src || true
+
+      - name: Unit tests (Lune, headless)
+        run: lune run tests/run

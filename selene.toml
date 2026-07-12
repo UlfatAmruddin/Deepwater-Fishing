@@ -1,0 +1,6 @@
+# Selene lint configuration for Deepwater Fishing.
+#
+# The Roblox standard library must be generated once per machine / CI run:
+#   selene generate-roblox-std
+# which writes roblox.yml (git-ignored) consumed via `std = "roblox"` below.
+std = "roblox"
