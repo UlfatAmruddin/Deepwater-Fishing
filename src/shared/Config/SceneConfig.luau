@@ -31,6 +31,10 @@ local SceneConfig: Types.SceneConfig = {
 	-- All gameplay (boat, hook, line, caught fish) lives on this Z plane.
 	gameplayPlaneZ = 0,
 
+	-- Horizontal reach of the logical gameplay plane (world X). The hook is
+	-- clamped to this by PlaneSpace, so gameplay can never wander off the plane.
+	planeBounds = { xMin = -30, xMax = 30 },
+
 	camera = {
 		position = Vector3.new(0, 8, 28),
 		lookAt = Vector3.new(0, 4, 0),

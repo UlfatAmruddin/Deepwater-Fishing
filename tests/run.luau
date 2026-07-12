@@ -10,6 +10,9 @@ local process = require("@lune/process")
 
 local SPECS = {
 	"Math",
+	"Rng",
+	"PlaneSpace",
+	"Content",
 }
 
 local totalPassed = 0

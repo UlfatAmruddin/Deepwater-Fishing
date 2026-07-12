@@ -45,6 +45,12 @@ export type TagSet = {
 	planeLayer: string, -- the depth-band folders (Index/Z/YTop/YBottom attrs)
 }
 
+-- Horizontal bounds of the logical gameplay plane, in world X.
+export type PlaneBounds = {
+	xMin: number,
+	xMax: number,
+}
+
 -- The complete authored scene contract shared by the client camera and the
 -- Studio scene-build script. Names are the human-friendly fallback; the `tags`
 -- are the stable, position-independent contract used by SceneContract.
@@ -58,6 +64,7 @@ export type SceneConfig = {
 	contractVersion: number, -- stamped on the scene root for future migrations
 	tags: TagSet,
 	gameplayPlaneZ: number, -- the single Z plane all gameplay stays on
+	planeBounds: PlaneBounds, -- horizontal reach of the logical plane
 	camera: CameraConfig,
 	layers: { DepthLayer },
 }
@@ -74,6 +81,63 @@ export type AssetManifestEntry = {
 	requiredChildren: { string }, -- required child instance kinds (e.g. "Seat")
 	movesInPlane: boolean, -- may move in X/Y (hook/fish) vs anchored presentation
 	replacement: string, -- one-line replacement note; full steps in ASSET_REPLACEMENT.md
+}
+
+-- --- Gameplay content vocabulary (data only; services arrive in later stages) ---
+
+-- A rarity tier for weighted fish selection and value scaling.
+export type RarityTier = {
+	id: string,
+	weight: number, -- relative selection weight (> 0)
+	valueMultiplier: number, -- economy value scale (> 0)
+}
+
+-- An original fish species. `depthRange` is NORMALIZED (0..1) — it never uses a
+-- world Z coordinate. Concrete visuals resolve later through AssetManifest.
+export type FishDefinition = {
+	id: string,
+	displayName: string,
+	zoneId: string, -- references a ZoneDefinition id
+	depthRange: Range, -- normalized 0..1 band where this fish appears
+	rarity: string, -- references a RarityTier id
+	baseValue: number, -- rarity-NEUTRAL species/size coin base; the rarity premium
+	-- comes only from RarityTier.valueMultiplier (value = baseValue * valueMultiplier * sizeFactor)
+	sizeRange: Range, -- natural size range (cm); caught size rolls within
+	aquariumValue: number, -- passive income contribution when displayed
+}
+
+-- A fishing zone. Only Sunny Shallows is defined at this stage.
+export type ZoneDefinition = {
+	id: string,
+	displayName: string,
+	maxDepth: number, -- deepest normalized depth (0..1) reachable in the zone
+	unlockCost: number, -- coins to unlock (0 = starter zone)
+}
+
+-- A purchasable upgrade (config only; no service yet). For LineLength the
+-- reachable normalized depth is effectBase + level * effectPerLevel (clamped).
+export type UpgradeDefinition = {
+	id: string,
+	displayName: string,
+	description: string,
+	maxLevel: number,
+	baseCost: number,
+	effectBase: number,
+	effectPerLevel: number,
+}
+
+-- Global tunables and server-validation tolerances (values in BalanceConfig).
+export type BalanceConfig = {
+	castCooldown: number,
+	runTimeout: number,
+	maxInputRate: number,
+	maxOfflineDuration: number,
+	upgradeCostGrowth: number,
+	startingCoins: number,
+	tolerances: {
+		position: number,
+		time: number,
+	},
 }
 
 return Types
