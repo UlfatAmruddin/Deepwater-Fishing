@@ -28,7 +28,7 @@ rokit install
 | [Rojo](https://rojo.space) | Sync `src/` into Studio; build `.rbxl` |
 | [StyLua](https://github.com/JohnnyMorganz/StyLua) | Formatting (`stylua src scene tests`) |
 | [Selene](https://github.com/Kampfkarren/selene) | Linting (`selene src scene`) |
-| [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) | Type-checking / editor intelligence |
+| [luau-lsp](https://github.com/JohnnyMorganz/luau-lsp) | Type-checking (enforced in CI) / editor intelligence |
 | [Lune](https://github.com/lune-org/lune) | Headless unit tests (`lune run tests/run`) |
 
 **Wally** (package manager) is intentionally **deferred** until a dependency is
@@ -38,8 +38,9 @@ actually needed — first use will be pulling `ProfileStore` for the data layer.
 > github.com is blocked (some sandboxes/CI-less containers), `rokit install`
 > fails and none of the commands above can run locally. The project still
 > **builds and runs in Roblox Studio** via the Rojo plugin, and the
-> [CI workflow](.github/workflows/ci.yml) runs the full format/lint/build/test
-> pipeline on GitHub Actions, where releases are reachable.
+> [CI workflow](.github/workflows/ci.yml) runs the full
+> format / lint / DataStore-quarantine / build / type-check / test pipeline on
+> GitHub Actions, where releases are reachable.
 
 ## Development workflow
 
@@ -69,7 +70,7 @@ Deepwater-Fishing/
 ├─ default.project.json     # Rojo mapping (see docs/ARCHITECTURE.md)
 ├─ .luaurc                  # Luau strict mode
 ├─ stylua.toml / selene.toml
-├─ .github/workflows/ci.yml # fmt + lint + build + test
+├─ .github/workflows/ci.yml # fmt + lint + quarantine + build + typecheck + test
 ├─ scene/                   # reproducible Studio scene builder + docs
 ├─ src/
 │  ├─ shared/               # -> ReplicatedStorage.Shared (pure, dependency sink)

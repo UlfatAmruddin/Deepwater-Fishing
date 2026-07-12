@@ -25,13 +25,31 @@ jobs:
           selene generate-roblox-std
           selene src scene
 
+      - name: DataStore quarantine (only PlayerData may touch DataStoreService)
+        run: |
+          # Structurally enforce the architecture rule: DataStoreService is owned
+          # solely by src/server/Data/PlayerData.luau. Fail on any other reference.
+          matches=$(grep -rnE 'GetService\(\s*["'"'"']DataStoreService["'"'"']\s*\)' src \
+            --include='*.luau' | grep -v 'src/server/Data/PlayerData.luau' || true)
+          if [ -n "$matches" ]; then
+            echo "::error::DataStoreService accessed outside src/server/Data/PlayerData.luau:"
+            echo "$matches"
+            exit 1
+          fi
+          echo "OK: DataStoreService is quarantined to PlayerData.luau"
+
       - name: Build place (Rojo)
         run: rojo build default.project.json --output build.rbxl
 
       - name: Type check (luau-lsp)
         run: |
           rojo sourcemap default.project.json --output sourcemap.json
-          luau-lsp analyze --sourcemap=sourcemap.json --settings=.vscode/settings.json src || true
+          # Roblox global type definitions MUST be pinned to the luau-lsp version
+          # in rokit.toml (JohnnyMorganz/luau-lsp@1.68.1); the definitions syntax
+          # tracks the luau-lsp release, so a mismatched file fails to parse. Bump
+          # this tag whenever you bump luau-lsp in rokit.toml.
+          curl -fsSL "https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.68.1/scripts/globalTypes.d.luau" -o globalTypes.d.luau
+          luau-lsp analyze --sourcemap=sourcemap.json --definitions=globalTypes.d.luau --base-luaurc=.luaurc src
 
       - name: Unit tests (Lune, headless)
         run: lune run tests/run

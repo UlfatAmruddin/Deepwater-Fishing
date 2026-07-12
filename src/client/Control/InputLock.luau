@@ -1,11 +1,13 @@
 --!strict
 -- Locks the local player into the seated boat experience.
 --
--- Removes the default movement/jump controller and sinks movement inputs so
--- the avatar cannot walk, jump, swim, climb, or drive locally. Camera rotation
--- is already impossible because the camera is Scriptable (see FixedCamera).
--- This is the client half; the server independently anchors the character
--- (server/Presentation/PlayerAnchor), so nothing here is trusted for security.
+-- Disables the default movement/jump controller and sinks movement inputs so the
+-- avatar cannot walk, jump, swim, climb, or drive locally. Camera rotation is
+-- already impossible because the camera is Scriptable (see FixedCamera). This is
+-- the client half only; the server independently seats/anchors the character
+-- (server/Presentation/PlayerAnchor), so nothing here is trusted for security —
+-- it keeps the local feel clean (no dead input, no visible touch thumbstick
+-- driving a locked avatar).
 
 local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
@@ -36,21 +38,30 @@ local MOVEMENT_KEYS = {
 	Enum.KeyCode.DPadRight,
 }
 
+local connections: { RBXScriptConnection } = {}
+
 local function sink(): Enum.ContextActionResult
 	return Enum.ContextActionResult.Sink
 end
 
--- Disable Roblox's default control module so it stops driving the Humanoid.
+-- Disable Roblox's default control module. This covers keyboard, gamepad,
+-- click-to-move, AND the mobile touch thumbstick — everything the CAS key-sink
+-- below cannot reach. Must be re-run on each spawn because the PlayerModule
+-- rebuilds and re-enables its controls for every new character.
 local function disablePlayerModuleControls()
 	local player = Players.LocalPlayer
-	local scripts = player:FindFirstChild("PlayerScripts")
-	local playerModule = scripts and scripts:FindFirstChild("PlayerModule")
-	if not playerModule then
+	local scripts = player:WaitForChild("PlayerScripts", 10)
+	local playerModule = scripts and scripts:WaitForChild("PlayerModule", 10)
+	if not playerModule or not playerModule:IsA("ModuleScript") then
 		return
 	end
 
+	-- luau-lsp cannot statically resolve a require of the runtime-provided
+	-- PlayerModule, so alias `require` to skip its path analysis. Guarded by pcall
+	-- in case the module shape changes across Roblox updates.
+	local requireModule = require :: (ModuleScript) -> any
 	local ok, controls = pcall(function()
-		return require(playerModule :: ModuleScript):GetControls()
+		return requireModule(playerModule):GetControls()
 	end)
 	if ok and controls then
 		controls:Disable()
@@ -60,8 +71,12 @@ end
 function InputLock.start()
 	disablePlayerModuleControls()
 
-	-- Belt-and-suspenders: even if the control module re-enables, these binds
-	-- sink the keys at high priority so they do nothing.
+	-- Re-disable on each respawn (the PlayerModule re-enables its controls).
+	local player = Players.LocalPlayer
+	table.insert(connections, player.CharacterAdded:Connect(disablePlayerModuleControls))
+
+	-- Belt-and-suspenders: sink movement/jump keys at high priority so keyboard
+	-- and gamepad do nothing even if the control module comes back.
 	ContextActionService:BindActionAtPriority(
 		FREEZE_ACTION,
 		sink,
@@ -73,6 +88,10 @@ end
 
 function InputLock.stop()
 	ContextActionService:UnbindAction(FREEZE_ACTION)
+	for _, conn in connections do
+		conn:Disconnect()
+	end
+	table.clear(connections)
 end
 
 return InputLock

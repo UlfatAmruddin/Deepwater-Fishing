@@ -1,10 +1,11 @@
 --!strict
 -- Owns per-player server state and its full teardown.
 --
--- Each player gets a Cleanup ("trove") that collects their connections; when
--- they leave, everything is disconnected and the state entry is dropped so no
--- per-player state leaks. Character spawns are routed to PlayerAnchor, which
--- seats and immobilises them on the boat.
+-- Each player gets a session-scoped Cleanup ("trove") plus a fresh per-character
+-- trove for every spawn. Character-scoped connections (the anchor's WalkSpeed
+-- guard, seat re-seat, etc.) live on the character trove and are released on
+-- respawn/death, so nothing accumulates across a session. When the player leaves,
+-- both troves are destroyed and the state entry is dropped.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,16 +19,33 @@ local PlayerData = require(script.Parent.Data.PlayerData)
 
 type PlayerState = {
 	player: Player,
-	trove: Cleanup.Cleanup,
+	trove: Cleanup.Cleanup, -- session-scoped
+	charTrove: Cleanup.Cleanup?, -- current character-scoped
 }
 
 local PlayerLifecycle = {}
 
 local states: { [Player]: PlayerState } = {}
 
+local function teardownCharacter(state: PlayerState)
+	local charTrove = state.charTrove
+	if charTrove then
+		state.charTrove = nil
+		charTrove:destroy()
+	end
+end
+
 local function onCharacterAdded(state: PlayerState, character: Model)
-	-- Anchoring waits for the Humanoid/root; do it off the signal thread.
-	task.spawn(PlayerAnchor.lock, state.player, character, state.trove)
+	-- Release the previous character's connections before wiring the new one.
+	teardownCharacter(state)
+
+	local charTrove = Cleanup.new()
+	state.charTrove = charTrove
+
+	-- Anchoring waits for the Humanoid/root; do it off the signal thread. If the
+	-- player leaves mid-wait, charTrove is destroyed and the anchor's late
+	-- trove:add is cleaned immediately (Cleanup's destroyed-guard).
+	task.spawn(PlayerAnchor.lock, state.player, character, charTrove)
 end
 
 local function onPlayerAdded(player: Player)
@@ -36,7 +54,7 @@ local function onPlayerAdded(player: Player)
 	end
 
 	local trove = Cleanup.new()
-	local state: PlayerState = { player = player, trove = trove }
+	local state: PlayerState = { player = player, trove = trove, charTrove = nil }
 	states[player] = state
 
 	-- Data layer is a documented stub in Stage 0 (no DataStore calls yet).
@@ -44,6 +62,9 @@ local function onPlayerAdded(player: Player)
 
 	trove:add(player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(state, character)
+	end))
+	trove:add(player.CharacterRemoving:Connect(function()
+		teardownCharacter(state)
 	end))
 
 	if player.Character then
@@ -59,6 +80,7 @@ local function onPlayerRemoving(player: Player)
 		return
 	end
 	states[player] = nil
+	teardownCharacter(state)
 	state.trove:destroy()
 	PlayerData.onPlayerRemoving(player)
 	Log.info("Player left:", player.Name)

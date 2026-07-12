@@ -36,7 +36,9 @@ subfolders without an `init` become plain Folders.
 ### `src/shared` → `ReplicatedStorage.Shared`
 - `Types.luau` — foundational presentation/config types (no gameplay types yet).
 - `Remotes.luau` — networking plumbing; a single `Remotes` folder + register/get
-  helpers. No gameplay remotes defined yet.
+  helpers. The folder is created eagerly at server boot; client lookups use a
+  bounded `WaitForChild` that errors clearly instead of yielding forever. No
+  gameplay remotes defined yet.
 - `Config/GameConfig.luau` — tiny global constants (game name, data scope).
 - `Config/SceneConfig.luau` — **source of truth** for the 2.5D layout: fixed
   camera pose, bounded pan, depth layers, boat anchor name.
@@ -45,15 +47,22 @@ subfolders without an `init` become plain Folders.
 - `Util/Math.luau` — pure numeric helpers (unit-tested headlessly).
 
 ### `src/server` → `ServerScriptService.Server`
-- `init.server.luau` — boots `PlayerLifecycle`.
-- `PlayerLifecycle.luau` — per-player state + `Cleanup`; wires join/leave,
-  routes character spawns to the anchor, calls the data hooks, and installs the
+- `init.server.luau` — creates the `Remotes` folder, validates the scene, then
+  boots `PlayerLifecycle`.
+- `PlayerLifecycle.luau` — per-player state with a session-scoped `Cleanup` trove
+  plus a fresh per-character trove each spawn; wires join/leave/respawn, routes
+  character spawns to the anchor, calls the data hooks, and installs the
   `BindToClose` shutdown hook.
-- `Presentation/PlayerAnchor.luau` — **server-authoritative** seat + immobilise
-  (WalkSpeed/Jump = 0, disabled Humanoid states, anchored root). Cannot be
-  overridden by a hacked client.
+- `Presentation/PlayerAnchor.luau` — **server-authoritative** immobilise. Seats
+  the humanoid on the boat Seat (`Seat:Sit`, with a re-seat guard) for the
+  sitting pose, or hard-anchors the HumanoidRootPart if the anchor is not a Seat.
+  Also zeros WalkSpeed/Jump and disables locomotion states. Cannot be overridden
+  by a hacked client.
+- `Scene/SceneValidator.luau` — boot-time diagnostics that warn (never error) if
+  the authored scene is missing or has drifted from `SceneConfig`.
 - `Data/PlayerData.luau` — **STUB**. The only future home of `DataStoreService`,
-  backed by ProfileStore session locking. No DataStore calls in Stage 0.
+  backed by ProfileStore session locking. No DataStore calls in Stage 0; a CI
+  guard fails the build if any other module references `DataStoreService`.
 
 ### `src/client` → `StarterPlayer.StarterPlayerScripts.Client`
 - `init.client.luau` — starts `InputLock` then `FixedCamera`.
@@ -67,7 +76,7 @@ subfolders without an `init` become plain Folders.
 | Contract requirement | Enforced by |
 | --- | --- |
 | Fixed camera orientation, bounded pan only | `client/Camera/FixedCamera` (Scriptable, rotation forced to home each frame) |
-| Player seated on a boat anchor | `server/Presentation/PlayerAnchor` + `scene/BuildScene` (`BoatAnchor` seat) |
+| Player seated on a boat anchor | `server/Presentation/PlayerAnchor` (`Seat:Sit` + re-seat guard; anchored-root fallback) + `scene/BuildScene` (`BoatAnchor` Seat) |
 | No walk/jump/swim/drive/free-camera/reposition | `PlayerAnchor` (server) + `InputLock` (client) |
 | Gameplay locked to one X/Y plane, layered Z depth | `SceneConfig.gameplayPlaneZ` + `Layers/*` depth bands |
 | Depth as vertical travel + layer changes | `SceneConfig.layers` (world-Y bands, parallax Z) |

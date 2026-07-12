@@ -18,35 +18,60 @@ local FixedCamera = {}
 
 local RENDER_STEP_NAME = "DeepwaterFixedCamera"
 
--- The authored camera CFrame: prefer the scene's CameraAnchor, else fall back
--- to the configured position/lookAt. Read once at start; it never changes.
-local function resolveHomeCFrame(): CFrame
+-- The authored camera pose: the scene's CameraAnchor if present (this is what a
+-- developer repositions in Studio), else the configured position/lookAt.
+local function resolveAnchorCFrame(): CFrame?
 	local scene = Workspace:FindFirstChild(SceneConfig.sceneName)
 	local anchor = scene and scene:FindFirstChild("CameraAnchor", true)
 	if anchor and anchor:IsA("BasePart") then
 		return anchor.CFrame
 	end
+	return nil
+end
+
+local function configCFrame(): CFrame
 	return CFrame.lookAt(SceneConfig.camera.position, SceneConfig.camera.lookAt)
 end
 
 function FixedCamera.start()
-	local camera = Workspace.CurrentCamera
-	if not camera then
-		return
-	end
-
-	camera.CameraType = Enum.CameraType.Scriptable
-	camera.FieldOfView = SceneConfig.camera.fieldOfView
-
-	local home = resolveHomeCFrame()
-	local homeRotation = home - home.Position -- rotation-only CFrame
 	local panX = SceneConfig.camera.panX
 	local panY = SceneConfig.camera.panY
 	local lerp = SceneConfig.camera.panLerp
+	local fov = SceneConfig.camera.fieldOfView
 
+	-- Home pose: prefer the authored CameraAnchor; until it replicates, use the
+	-- config fallback. Locked in on the first successful anchor resolve.
+	local anchorCFrame = resolveAnchorCFrame()
+	local home = anchorCFrame or configCFrame()
+	local homeRotation = home - home.Position -- rotation-only CFrame
+	local homeLocked = anchorCFrame ~= nil
 	local current = home
+	local lastCamera: Camera? = nil
 
 	RunService:BindToRenderStep(RENDER_STEP_NAME, Enum.RenderPriority.Camera.Value, function()
+		-- Re-read every frame: covers a nil-at-boot frame and any later
+		-- replacement of Workspace.CurrentCamera (e.g. on some respawn paths).
+		local camera = Workspace.CurrentCamera
+		if not camera then
+			return
+		end
+
+		-- Adopt the authored anchor pose as soon as the scene becomes available.
+		if not homeLocked then
+			local resolved = resolveAnchorCFrame()
+			if resolved then
+				home = resolved
+				homeRotation = home - home.Position
+				current = home
+				homeLocked = true
+			end
+		end
+
+		-- (Re-)initialise a newly-adopted camera.
+		if camera ~= lastCamera then
+			lastCamera = camera
+			camera.FieldOfView = fov
+		end
 		-- Re-assert Scriptable so nothing can hand control back to the player.
 		camera.CameraType = Enum.CameraType.Scriptable
 

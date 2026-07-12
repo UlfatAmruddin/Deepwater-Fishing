@@ -5,6 +5,15 @@
 -- Enforcing this on the server means a hacked client cannot override it; the
 -- client half (client/Control/InputLock) only removes default controls and
 -- sinks input for a clean local feel.
+--
+-- Presentation contract: if the authored anchor is a Seat (the placeholder scene
+-- builds one, and a developer's replacement boat is expected to keep a Seat
+-- named SceneConfig.boatAnchorName), the humanoid is genuinely put into the
+-- Seated state so it plays the sitting pose the 2.5D contract calls for. Any
+-- other BasePart (or a missing anchor) falls back to hard-anchoring the
+-- HumanoidRootPart. Note a VehicleSeat is intentionally NOT treated as a seat —
+-- it would grant throttle/steer input — so it takes the anchored fallback path.
+-- Either way the player is fully immobilised on the server.
 
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,6 +25,8 @@ local Log = require(Shared.Util.Log)
 
 local PlayerAnchor = {}
 
+-- Locomotion states a seated player must never enter. Seated is deliberately NOT
+-- disabled — we rely on it for the sitting pose.
 local DISABLED_STATES = {
 	Enum.HumanoidStateType.Jumping,
 	Enum.HumanoidStateType.Climbing,
@@ -38,13 +49,23 @@ local function findBoatAnchor(): BasePart?
 end
 
 function PlayerAnchor.lock(player: Player, character: Model, trove: Cleanup.Cleanup)
-	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
-	local root = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
-	if not humanoid or not root then
-		Log.warn("Could not resolve Humanoid/HumanoidRootPart for", player.Name)
+	local humanoidInstance = character:WaitForChild("Humanoid", 10)
+	local rootInstance = character:WaitForChild("HumanoidRootPart", 10)
+	local humanoid = if humanoidInstance and humanoidInstance:IsA("Humanoid")
+		then humanoidInstance
+		else nil
+	local root = if rootInstance and rootInstance:IsA("BasePart") then rootInstance else nil
+	if not humanoid then
+		Log.warn("Could not resolve Humanoid for", player.Name)
+		return
+	end
+	if not root then
+		Log.warn("Could not resolve HumanoidRootPart for", player.Name)
 		return
 	end
 
+	-- Defense-in-depth: zero out every locomotion affordance so a hacked client
+	-- has nothing to drive, seated or not.
 	humanoid.WalkSpeed = 0
 	humanoid.JumpPower = 0
 	humanoid.JumpHeight = 0
@@ -55,19 +76,40 @@ function PlayerAnchor.lock(player: Player, character: Model, trove: Cleanup.Clea
 	end
 
 	local anchorPart = findBoatAnchor()
-	if anchorPart then
-		root.CFrame = anchorPart.CFrame + Vector3.new(0, 2, 0)
-	else
-		Log.warn(
-			("Boat anchor '%s' not found under '%s' - run scene/BuildScene.luau in Studio."):format(
-				SceneConfig.boatAnchorName,
-				SceneConfig.sceneName
-			)
-		)
-	end
+	local seat: Seat? = if anchorPart and anchorPart:IsA("Seat") then anchorPart else nil
 
-	-- Anchoring the root part is the hard guarantee the player never moves.
-	root.Anchored = true
+	if seat then
+		local activeSeat = seat
+		-- Genuinely seat the avatar: the Seat's weld holds it in a sitting pose.
+		activeSeat:Sit(humanoid)
+
+		-- Re-seat if anything (exploit, forced state change) knocks a live player
+		-- out. Seated fires with active=false when they leave the seat; ignore the
+		-- death case (Health <= 0) so we never try to re-seat a corpse.
+		trove:add(humanoid.Seated:Connect(function(active: boolean)
+			if not active and activeSeat.Parent ~= nil and humanoid.Health > 0 then
+				activeSeat:Sit(humanoid)
+			end
+		end))
+
+		Log.info("Seated player on boat:", player.Name)
+	else
+		-- No Seat available (a developer may have swapped in a plain anchor part).
+		-- Hard-lock by anchoring the root at/above the anchor point.
+		if anchorPart then
+			root.CFrame = anchorPart.CFrame + Vector3.new(0, 2, 0)
+		else
+			Log.warn(
+				("Boat anchor '%s' not found under '%s' - run scene/BuildScene.luau in Studio."):format(
+					SceneConfig.boatAnchorName,
+					SceneConfig.sceneName
+				)
+			)
+		end
+		-- Anchoring the root part is the hard guarantee the player never moves.
+		root.Anchored = true
+		Log.info("Anchored player to boat (no Seat found):", player.Name)
+	end
 
 	-- If anything tries to re-grant movement, clamp it straight back to zero.
 	trove:add(humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
@@ -75,8 +117,6 @@ function PlayerAnchor.lock(player: Player, character: Model, trove: Cleanup.Clea
 			humanoid.WalkSpeed = 0
 		end
 	end))
-
-	Log.info("Anchored player to boat:", player.Name)
 end
 
 return PlayerAnchor

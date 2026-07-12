@@ -5,14 +5,19 @@ sourcemap.json
 
 # Generated tooling files
 roblox.yml
+globalTypes.d.luau
 /.rokit/
 /.lune/
 
-# Wally (adopted later, when a dependency is actually needed)
+# Wally (adopted later, when a dependency is actually needed).
+# NOTE: wally.lock is intentionally NOT ignored — a lockfile must be committed
+# for reproducible dependency resolution (same rule as package-lock.json).
 /Packages/
 /ServerPackages/
 /DevPackages/
-wally.lock
+
+# Per-machine editor / tooling config
+.claude/settings.local.json
 
 # OS / editor noise
 .DS_Store

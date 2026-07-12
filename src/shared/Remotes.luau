@@ -5,6 +5,10 @@
 -- ReplicatedStorage so the client and server can never disagree on names.
 -- No gameplay remotes are defined yet (Stage 0) — this is only the plumbing
 -- that later stages register typed, server-validated handlers against.
+--
+-- The server creates the folder eagerly at boot (Remotes.init), so a client
+-- never waits on a lazily-created folder. Client lookups use a bounded
+-- WaitForChild and raise a clear error instead of yielding forever.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -12,6 +16,7 @@ local RunService = game:GetService("RunService")
 local Remotes = {}
 
 local FOLDER_NAME = "Remotes"
+local WAIT_TIMEOUT = 10
 
 -- Wire-contract names land here as features arrive. Centralising them keeps
 -- both sides honest about what may be sent.
@@ -30,7 +35,16 @@ local function getFolder(): Folder
 		return folder
 	end
 
-	return ReplicatedStorage:WaitForChild(FOLDER_NAME) :: Folder
+	local folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, WAIT_TIMEOUT)
+	assert(folder, `Remotes folder '{FOLDER_NAME}' did not replicate within {WAIT_TIMEOUT}s`)
+	return folder :: Folder
+end
+
+-- Server only: create the Remotes folder eagerly at boot so it always exists
+-- before any client queries it. Call once from the server bootstrap.
+function Remotes.init()
+	assert(RunService:IsServer(), "Remotes.init must be called on the server")
+	getFolder()
 end
 
 -- Server only: ensure a RemoteEvent exists and return it.
@@ -56,7 +70,10 @@ function Remotes.getEvent(name: string): RemoteEvent
 		local existing = folder:FindFirstChild(name)
 		return (existing or Remotes.registerEvent(name)) :: RemoteEvent
 	end
-	return folder:WaitForChild(name) :: RemoteEvent
+
+	local event = folder:WaitForChild(name, WAIT_TIMEOUT)
+	assert(event, `RemoteEvent '{name}' did not replicate within {WAIT_TIMEOUT}s`)
+	return event :: RemoteEvent
 end
 
 return Remotes

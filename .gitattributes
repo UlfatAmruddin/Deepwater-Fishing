@@ -1,0 +1,26 @@
+# Normalize line endings so tooling (StyLua, Selene, luau-lsp) sees LF on every
+# platform. Without this, a Windows checkout with core.autocrlf=true rewrites
+# .luau files to CRLF and `stylua --check` (line_endings = "Unix") fails on every
+# line. .gitattributes is authoritative and reproducible — do not rely on each
+# contributor setting core.autocrlf.
+
+* text=auto eol=lf
+
+*.luau text eol=lf
+*.lua  text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Roblox / binary artifacts must never be line-ending converted.
+*.rbxl  binary
+*.rbxlx binary
+*.rbxm  binary
+*.rbxmx binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ogg   binary
+*.mp3   binary
