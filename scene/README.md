@@ -17,7 +17,7 @@ anyone can regenerate it from a fresh Baseplate without hand-placing parts.
 2. Open the command bar (`View > Command Bar`).
 3. Paste the **entire** contents of [`BuildScene.luau`](./BuildScene.luau) and
    press <kbd>Enter</kbd>.
-4. Confirm the output: `[Deepwater] Built 'DeepwaterScene' with 4 depth layers...`
+4. Confirm the output: `[Deepwater] Built 'DeepwaterScene' (contract v1) with 4 depth layers, tagged for asset replacement.`
 5. `File > Save to File` (or Publish) to persist the place.
 
 The script is **idempotent** — running it again destroys the old
@@ -25,14 +25,20 @@ The script is **idempotent** — running it again destroys the old
 
 ## What it builds (`Workspace.DeepwaterScene`)
 
-| Instance | Type | Purpose |
-| --- | --- | --- |
-| `CameraAnchor` | Part (invisible) | Its `CFrame` is the fixed camera pose the client reads |
-| `Boat/Hull` | Part (anchored) | The boat body |
-| `Boat/BoatAnchor` | Seat (anchored) | The seat point the server anchors the player to |
-| `BoatSpawn` | SpawnLocation | Players spawn seated on the boat |
-| `Water` | Part (anchored, non-colliding) | Visual water column |
-| `Layers/<Surface..Deepwater>` | Folder | One per depth band; carries `Index`/`Z`/`YTop`/`YBottom` attributes + a visual `Band` |
+Every gameplay-relevant instance is tagged (CollectionService) so a custom model
+can replace it with no code change — see
+[docs/ASSET_REPLACEMENT.md](../docs/ASSET_REPLACEMENT.md).
+
+| Instance | Tag | Type | Purpose |
+| --- | --- | --- | --- |
+| `DeepwaterScene` (root) | `DwScene` | Model | Holds all authored presentation (`ContractVersion` attr) |
+| `CameraAnchor` | `DwCameraAnchor` | Part (invisible) | Its `CFrame` is the fixed camera pose |
+| `Boat/BoatAnchor` | `DwBoatAnchor` | Seat (**anchored**) | The seat the server seats the player on |
+| `Boat/HookOrigin` | `DwHookOrigin` | Attachment | Where the line pays out (on the gameplay plane) |
+| `Boat/Hull` | — | Part (anchored) | The boat body (visual only) |
+| `BoatSpawns/BoatSpawn_1` | `DwBoatSpawn` | SpawnLocation | Players spawn on the boat |
+| `Water` | — | Part (anchored, non-colliding) | Visual water column |
+| `PlaneLayers/<Surface..Deepwater>` | `DwPlaneLayer` | Folder | Depth bands; `Index`/`Z`/`YTop`/`YBottom` attributes + a visual `Band` |
 
 The layout mirrors `src/shared/Config/SceneConfig.luau`, which is the runtime
 source of truth. **If you change values in one, change them in the other.**
@@ -42,7 +48,7 @@ source of truth. **If you change values in one, change them in the other.**
 `BuildScene.luau` performs the conversion for you:
 
 - removes the default flat `Baseplate` part,
-- removes any stray `SpawnLocation`s and adds the on-boat `BoatSpawn`,
+- removes any stray `SpawnLocation`s and adds the on-boat `BoatSpawns` folder,
 - disables `Workspace.StreamingEnabled` (the scene is small and fully authored),
 - sets harbor-mood `Lighting`.
 
@@ -55,7 +61,7 @@ Once the scripts are synced and you press **Play**:
 - [ ] `WASD`, arrows, and <kbd>Space</kbd> do **nothing**; the avatar never
       walks or jumps.
 - [ ] The avatar is seated on the boat and cannot be moved or repositioned.
-- [ ] Output shows the server anchor + client boot logs
-      (`[Deepwater] Anchored player to boat`, `[Deepwater] Client ready.`).
-- [ ] `Workspace.DeepwaterScene.Layers` contains four folders with the
-      expected attributes.
+- [ ] Output shows `[Deepwater] Scene contract validated: DeepwaterScene`,
+      `[Deepwater] Seated player on boat`, and `[Deepwater] Client ready.`.
+- [ ] `Workspace.DeepwaterScene.PlaneLayers` contains four folders with the
+      expected `Index`/`Z`/`YTop`/`YBottom` attributes.

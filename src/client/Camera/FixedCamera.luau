@@ -12,6 +12,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local SceneConfig = require(Shared.Config.SceneConfig)
+local SceneContract = require(Shared.SceneContract)
 local Math = require(Shared.Util.Math)
 
 local FixedCamera = {}
@@ -21,9 +22,8 @@ local RENDER_STEP_NAME = "DeepwaterFixedCamera"
 -- The authored camera pose: the scene's CameraAnchor if present (this is what a
 -- developer repositions in Studio), else the configured position/lookAt.
 local function resolveAnchorCFrame(): CFrame?
-	local scene = Workspace:FindFirstChild(SceneConfig.sceneName)
-	local anchor = scene and scene:FindFirstChild("CameraAnchor", true)
-	if anchor and anchor:IsA("BasePart") then
+	local anchor = SceneContract.getCameraAnchor()
+	if anchor then
 		return anchor.CFrame
 	end
 	return nil

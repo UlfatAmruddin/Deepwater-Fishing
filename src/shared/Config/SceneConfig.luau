@@ -10,6 +10,23 @@ local Types = require(script.Parent.Parent.Types)
 local SceneConfig: Types.SceneConfig = {
 	sceneName = "DeepwaterScene",
 	boatAnchorName = "BoatAnchor",
+	cameraAnchorName = "CameraAnchor",
+	hookOriginName = "HookOrigin",
+	boatSpawnsFolderName = "BoatSpawns",
+	planeLayersFolderName = "PlaneLayers",
+	contractVersion = 1,
+
+	-- Asset-replacement contract: gameplay resolves scene parts by these tags
+	-- (via SceneContract), so any tagged custom model can replace a placeholder
+	-- without gameplay code changes. Mirrored in scene/BuildScene.luau.
+	tags = {
+		scene = "DwScene",
+		cameraAnchor = "DwCameraAnchor",
+		boatAnchor = "DwBoatAnchor",
+		hookOrigin = "DwHookOrigin",
+		boatSpawn = "DwBoatSpawn",
+		planeLayer = "DwPlaneLayer",
+	},
 
 	-- All gameplay (boat, hook, line, caught fish) lives on this Z plane.
 	gameplayPlaneZ = 0,

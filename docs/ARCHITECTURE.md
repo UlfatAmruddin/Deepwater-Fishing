@@ -78,7 +78,7 @@ subfolders without an `init` become plain Folders.
 | Fixed camera orientation, bounded pan only | `client/Camera/FixedCamera` (Scriptable, rotation forced to home each frame) |
 | Player seated on a boat anchor | `server/Presentation/PlayerAnchor` (`Seat:Sit` + re-seat guard; anchored-root fallback) + `scene/BuildScene` (`BoatAnchor` Seat) |
 | No walk/jump/swim/drive/free-camera/reposition | `PlayerAnchor` (server) + `InputLock` (client) |
-| Gameplay locked to one X/Y plane, layered Z depth | `SceneConfig.gameplayPlaneZ` + `Layers/*` depth bands |
+| Gameplay locked to one X/Y plane, layered Z depth | `SceneConfig.gameplayPlaneZ` + `PlaneLayers/*` depth bands |
 | Depth as vertical travel + layer changes | `SceneConfig.layers` (world-Y bands, parallax Z) |
 | Small authored idle animations only | reserved for a later presentation stage |
 

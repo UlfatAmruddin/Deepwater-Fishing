@@ -15,11 +15,11 @@
 -- it would grant throttle/steer input — so it takes the anchored fallback path.
 -- Either way the player is fully immobilised on the server.
 
-local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local SceneConfig = require(Shared.Config.SceneConfig)
+local SceneContract = require(Shared.SceneContract)
 local Cleanup = require(Shared.Util.Cleanup)
 local Log = require(Shared.Util.Log)
 
@@ -36,16 +36,11 @@ local DISABLED_STATES = {
 	Enum.HumanoidStateType.Ragdoll,
 }
 
+-- Resolve the boat anchor through the asset-replacement contract (tag-first,
+-- name-fallback) so a swapped-in boat model works with no change here. Returns
+-- a Seat when one is tagged/named (seated path) or any anchor BasePart.
 local function findBoatAnchor(): BasePart?
-	local scene = Workspace:FindFirstChild(SceneConfig.sceneName)
-	if not scene then
-		return nil
-	end
-	local anchor = scene:FindFirstChild(SceneConfig.boatAnchorName, true)
-	if anchor and anchor:IsA("BasePart") then
-		return anchor
-	end
-	return nil
+	return SceneContract.getBoatAnchorPart()
 end
 
 function PlayerAnchor.lock(player: Player, character: Model, trove: Cleanup.Cleanup)
