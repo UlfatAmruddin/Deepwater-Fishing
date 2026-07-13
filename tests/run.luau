@@ -13,6 +13,8 @@ local SPECS = {
 	"Rng",
 	"PlaneSpace",
 	"Content",
+	"ProfileSchema",
+	"SessionCore",
 }
 
 local totalPassed = 0

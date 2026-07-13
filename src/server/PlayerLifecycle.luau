@@ -57,7 +57,7 @@ local function onPlayerAdded(player: Player)
 	local state: PlayerState = { player = player, trove = trove, charTrove = nil }
 	states[player] = state
 
-	-- Data layer is a documented stub in Stage 0 (no DataStore calls yet).
+	-- Triggers the ProfileStore-backed profile load (async; see PlayerData).
 	PlayerData.onPlayerAdded(player)
 
 	trove:add(player.CharacterAdded:Connect(function(character)
@@ -95,13 +95,7 @@ function PlayerLifecycle.start()
 		task.spawn(onPlayerAdded, player)
 	end
 
-	-- Shutdown hook: the data layer flushes here in Stage 3. Kept now so the
-	-- save-on-close pattern exists from the start.
-	game:BindToClose(function()
-		for player in states do
-			PlayerData.onPlayerRemoving(player)
-		end
-	end)
+	-- Data-layer save-on-shutdown is owned by PlayerData.start()'s BindToClose.
 end
 
 return PlayerLifecycle

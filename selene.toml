@@ -4,3 +4,6 @@
 #   selene generate-roblox-std
 # which writes roblox.yml (git-ignored) consumed via `std = "roblox"` below.
 std = "roblox"
+
+# Vendored third-party code (ProfileStore) is excluded from our lint rules.
+exclude = ["src/server/Data/ProfileStore/**"]
