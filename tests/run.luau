@@ -15,6 +15,10 @@ local SPECS = {
 	"Content",
 	"ProfileSchema",
 	"SessionCore",
+	"RateLimiter",
+	"PayloadGuard",
+	"Sanitizer",
+	"Notice",
 }
 
 local totalPassed = 0

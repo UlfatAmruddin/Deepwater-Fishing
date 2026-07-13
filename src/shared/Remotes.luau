@@ -1,14 +1,12 @@
 --!strict
--- Central networking registry.
+-- Central networking registry + name/type manifest.
 --
--- All RemoteEvents/RemoteFunctions live under a single folder in
--- ReplicatedStorage so the client and server can never disagree on names.
--- No gameplay remotes are defined yet (Stage 0) — this is only the plumbing
--- that later stages register typed, server-validated handlers against.
---
--- The server creates the folder eagerly at boot (Remotes.init), so a client
--- never waits on a lazily-created folder. Client lookups use a bounded
--- WaitForChild and raise a clear error instead of yielding forever.
+-- `Remotes.Names` is the single source of truth for every remote: its kind
+-- (RemoteEvent vs RemoteFunction) and direction. RemoteFunctions are
+-- request/response and CLIENT->SERVER only; RemoteEvents carry the high-frequency
+-- fishing loop and server->client pushes. The server creates the folder AND every
+-- declared remote eagerly at boot (Remotes.init), so clients never wait on a
+-- lazily-created remote; client lookups use a bounded WaitForChild.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -18,62 +16,82 @@ local Remotes = {}
 local FOLDER_NAME = "Remotes"
 local WAIT_TIMEOUT = 10
 
--- Wire-contract names land here as features arrive. Centralising them keeps
--- both sides honest about what may be sent.
-Remotes.Events = {} :: { [string]: string }
+export type RemoteKind = "Event" | "Function"
+export type RemoteDirection = "ClientToServer" | "ServerToClient"
+export type RemoteSpec = { kind: RemoteKind, direction: RemoteDirection }
+
+Remotes.Names = {
+	-- Client -> Server: the fishing loop (Events) + request/response actions (Functions).
+	RequestCast = { kind = "Event", direction = "ClientToServer" },
+	FishingInput = { kind = "Event", direction = "ClientToServer" },
+	FinishFishingRun = { kind = "Event", direction = "ClientToServer" },
+	PurchaseUpgrade = { kind = "Function", direction = "ClientToServer" },
+	CollectAquarium = { kind = "Function", direction = "ClientToServer" },
+	RequestPlayerSnapshot = { kind = "Function", direction = "ClientToServer" },
+	-- Server -> Client: pushes only (never a RemoteFunction).
+	PlayerSnapshot = { kind = "Event", direction = "ServerToClient" },
+	FishingState = { kind = "Event", direction = "ServerToClient" },
+	RunResult = { kind = "Event", direction = "ServerToClient" },
+	Notice = { kind = "Event", direction = "ServerToClient" },
+} :: { [string]: RemoteSpec }
+
+local function specFor(name: string): RemoteSpec
+	local spec = Remotes.Names[name]
+	assert(spec, ("Unknown remote '%s' — add it to Remotes.Names"):format(name))
+	return spec
+end
 
 local function getFolder(): Folder
 	local existing = ReplicatedStorage:FindFirstChild(FOLDER_NAME)
 	if existing then
 		return existing :: Folder
 	end
-
 	if RunService:IsServer() then
 		local folder = Instance.new("Folder")
 		folder.Name = FOLDER_NAME
 		folder.Parent = ReplicatedStorage
 		return folder
 	end
-
 	local folder = ReplicatedStorage:WaitForChild(FOLDER_NAME, WAIT_TIMEOUT)
 	assert(folder, `Remotes folder '{FOLDER_NAME}' did not replicate within {WAIT_TIMEOUT}s`)
 	return folder :: Folder
 end
 
--- Server only: create the Remotes folder eagerly at boot so it always exists
--- before any client queries it. Call once from the server bootstrap.
-function Remotes.init()
-	assert(RunService:IsServer(), "Remotes.init must be called on the server")
-	getFolder()
-end
-
--- Server only: ensure a RemoteEvent exists and return it.
-function Remotes.registerEvent(name: string): RemoteEvent
-	assert(RunService:IsServer(), "Remotes.registerEvent must be called on the server")
-
+local function resolve(name: string, className: string): Instance
 	local folder = getFolder()
 	local existing = folder:FindFirstChild(name)
 	if existing then
-		return existing :: RemoteEvent
+		return existing
 	end
-
-	local event = Instance.new("RemoteEvent")
-	event.Name = name
-	event.Parent = folder
-	return event
+	if RunService:IsServer() then
+		local remote = Instance.new(className)
+		remote.Name = name
+		remote.Parent = folder
+		return remote
+	end
+	local remote = folder:WaitForChild(name, WAIT_TIMEOUT)
+	assert(remote, `Remote '{name}' did not replicate within {WAIT_TIMEOUT}s`)
+	return remote
 end
 
--- Either side: fetch an already-registered RemoteEvent (creating on server).
-function Remotes.getEvent(name: string): RemoteEvent
-	local folder = getFolder()
-	if RunService:IsServer() then
-		local existing = folder:FindFirstChild(name)
-		return (existing or Remotes.registerEvent(name)) :: RemoteEvent
+-- Server only: eagerly create the folder + every declared remote at boot.
+function Remotes.init()
+	assert(RunService:IsServer(), "Remotes.init must be called on the server")
+	for name, spec in Remotes.Names do
+		resolve(name, if spec.kind == "Function" then "RemoteFunction" else "RemoteEvent")
 	end
+end
 
-	local event = folder:WaitForChild(name, WAIT_TIMEOUT)
-	assert(event, `RemoteEvent '{name}' did not replicate within {WAIT_TIMEOUT}s`)
-	return event :: RemoteEvent
+-- Either side: fetch a declared RemoteEvent (created on the server if missing).
+function Remotes.getEvent(name: string): RemoteEvent
+	assert(specFor(name).kind == "Event", ("Remote '%s' is not an Event"):format(name))
+	return resolve(name, "RemoteEvent") :: RemoteEvent
+end
+
+-- Either side: fetch a declared RemoteFunction (created on the server if missing).
+function Remotes.getFunction(name: string): RemoteFunction
+	assert(specFor(name).kind == "Function", ("Remote '%s' is not a Function"):format(name))
+	return resolve(name, "RemoteFunction") :: RemoteFunction
 end
 
 return Remotes
